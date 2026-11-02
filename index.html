@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="light dark">
+<title>Simulador RepMed</title>
+<style>[hidden]{display:none!important}body{margin:0}</style>
+<style>
+/* Layout: cabeçalho curto, formulário à esquerda e resultado à direita; em tela estreita, empilhado. */
+:root{
+  --bg:#F3F7F6; --surface:#FBFDFC; --fg:#0F2A30; --muted:#4B636A; --line:#D3E0DE;
+  --accent:#0A6670; --accent-fg:#FFFFFF; --accent-soft:#DDEEEC;
+  --warn-bg:#FFF1D1; --warn-fg:#5A3F00; --bad:#9B2C2C; --bad-bg:#FBE4E1;
+  --code-bg:#0B2A30; --code-fg:#D6E8E6;
+  --font-text:system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; --font-mono:ui-monospace, 'Cascadia Mono', Consolas, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0A1B1F; --surface:#10282D; --fg:#E6F0EF; --muted:#9DB8BB; --line:#24424A;
+  --accent:#5CC4CC; --accent-fg:#06262B; --accent-soft:#16383F;
+  --warn-bg:#3A2D0E; --warn-fg:#F2D590; --bad:#F29A92; --bad-bg:#3C1B1A;
+  --code-bg:#06161A; --code-fg:#CFE3E1; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0A1B1F; --surface:#10282D; --fg:#E6F0EF; --muted:#9DB8BB; --line:#24424A;
+  --accent:#5CC4CC; --accent-fg:#06262B; --accent-soft:#16383F;
+  --warn-bg:#3A2D0E; --warn-fg:#F2D590; --bad:#F29A92; --bad-bg:#3C1B1A;
+  --code-bg:#06161A; --code-fg:#CFE3E1; color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-text);font-size:16px;line-height:1.5;
+  padding-block:32px 64px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+h1{font-size:clamp(28px,5vw,40px);line-height:1.15;margin:0;text-wrap:balance}
+h2{font-size:20px;margin:0 0 12px}
+p{margin:0}
+.lead{color:var(--muted);max-width:68ch;margin-top:8px}
+.notice{background:var(--warn-bg);color:var(--warn-fg);padding:14px 16px;border-radius:8px;font-size:14px;max-width:80ch}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tabs button{font:inherit;font-weight:600;padding:10px 16px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:24px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;min-width:0}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media (max-width:480px){.fields{grid-template-columns:minmax(0,1fr)}}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+select,input{font:inherit;font-size:16px;text-transform:none;letter-spacing:0;font-weight:400;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;min-width:0;width:100%}
+.full{grid-column:1/-1}
+.adj-row{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.6fr) auto;gap:8px;align-items:end}
+@media (max-width:480px){.adj-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.btn{font:inherit;font-weight:600;padding:9px 14px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips .btn{font-size:14px;padding:6px 12px}
+.final{display:flex;flex-direction:column;gap:2px;background:var(--accent);color:var(--accent-fg);border-radius:12px;padding:16px 20px}
+.final .k{font-size:13px;text-transform:uppercase;letter-spacing:.08em;opacity:.9}
+.final .v{font-size:clamp(32px,6vw,44px);font-weight:700;font-variant-numeric:tabular-nums}
+.err{background:var(--bad-bg);color:var(--bad);padding:14px 16px;border-radius:10px;font-weight:600}
+.rule{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:14px;color:var(--muted);margin-bottom:12px}
+.rule b{color:var(--fg)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:15px;font-variant-numeric:tabular-nums}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+td.n,th.n{text-align:right}
+tr.tot td{font-weight:700;background:var(--accent-soft)}
+tr.bad td{color:var(--bad)}
+pre{margin:0;background:var(--code-bg);color:var(--code-fg);font-family:var(--font-mono);font-size:13px;line-height:1.5;padding:14px;border-radius:8px;overflow-x:auto}
+details{margin-top:12px}
+summary{cursor:pointer;font-weight:600;color:var(--accent)}
+.stats{display:flex;flex-wrap:wrap;gap:8px 24px;margin-bottom:14px;font-size:15px}
+.stats b{font-variant-numeric:tabular-nums}
+.small{font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Simulador do motor RepMed</h1>
+    <p class="lead">Calcule um atendimento passo a passo ou processe o conjunto de exemplo de 10 linhas. Parâmetros, nomes e valores são fictícios.</p>
+  </header>
+  <p class="notice">Esta página reproduz em JavaScript as regras do motor de cálculo do RepMed (arredondamento ROUND_HALF_UP a cada passo, vigência, precedência de regra, direção do repasse, valor fixo e ajustes). O produto usa Python, PostgreSQL, API e linha de comando; os mesmos oito cálculos de referência são verificados por testes automatizados no repositório.</p>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-sim" aria-selected="true" aria-controls="sec-sim">Simular um atendimento</button>
+    <button role="tab" id="tab-lote" aria-selected="false" aria-controls="sec-lote">Conjunto de exemplo</button>
+  </div>
+
+  <section id="sec-sim" class="grid" aria-labelledby="tab-sim">
+    <form class="panel" id="form" autocomplete="off">
+      <h2>Atendimento</h2>
+      <div class="fields">
+        <label>Profissional<select id="f-prof"></select></label>
+        <label>Categoria<select id="f-cat"></select></label>
+        <label>Tipo de atendimento<select id="f-tipo"></select></label>
+        <label>Data<input id="f-data" type="date" value="2026-03-02"></label>
+        <label>Valor bruto (R$)<input id="f-bruto" inputmode="decimal" value="250,00"></label>
+        <label>Forma de pagamento<select id="f-forma"></select></label>
+        <label class="full">Item de valor fixo<select id="f-item"></select></label>
+      </div>
+      <h2 style="margin-top:20px">Ajustes</h2>
+      <div id="ajustes" style="display:flex;flex-direction:column;gap:10px"></div>
+      <div style="margin-top:12px"><button type="button" class="btn" id="add-aj">Adicionar ajuste</button></div>
+      <h2 style="margin-top:20px">Casos de referência</h2>
+      <div class="chips" id="presets"></div>
+    </form>
+
+    <div class="panel" id="resultado" aria-live="polite"></div>
+  </section>
+
+  <section id="sec-lote" hidden aria-labelledby="tab-lote">
+    <div class="panel">
+      <h2>Importação e processamento do CSV de exemplo</h2>
+      <div class="stats" id="lote-stats"></div>
+      <div class="tablewrap"><table id="lote-tab"></table></div>
+      <h2 style="margin-top:24px">Consolidado por profissional</h2>
+      <div class="tablewrap"><table id="cons-tab"></table></div>
+      <p class="small" style="margin-top:12px">A linha A-0009 não tem regra cadastrada para o profissional e a A-0010 tem uma data inexistente: o lote registra os dois erros e segue com os demais, como no produto.</p>
+    </div>
+  </section>
+
+  <details class="panel">
+    <summary>Parâmetros ilustrativos usados nesta página</summary>
+    <div class="tablewrap" style="margin-top:12px"><table id="param-tab"></table></div>
+    <p class="small" style="margin-top:10px">Percentuais, regimes e tributos são inventados para demonstração e não representam tabela oficial.</p>
+  </details>
+</div>
+
+<script>
+// ===== MOTOR (aritmética inteira com BigInt: dinheiro em centavos, percentuais com 4 casas) =====
+const S = 10000n, CEM = 100n * S;
+const INST = 'INSTITUICAO_PARA_PROFISSIONAL', PROF = 'PROFISSIONAL_PARA_INSTITUICAO';
+
+function divRound(n, d) {
+  const neg = (n < 0n) !== (d < 0n);
+  const a = n < 0n ? -n : n, b = d < 0n ? -d : d;
+  const q = (2n * a + b) / (2n * b);
+  return neg ? -q : q;
+}
+function toScaled(text, scale, decimalComma) {
+  let t = String(text).trim().replace(/\s/g, '');
+  if (!t) throw new Error('valor vazio');
+  if (decimalComma === 'auto') decimalComma = t.includes(',');
+  t = decimalComma ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
+  const m = /^([+-]?)(\d+)(?:\.(\d+))?$/.exec(t);
+  if (!m) throw new Error('valor numérico inválido: ' + text);
+  const digits = String(scale).length - 1;
+  const frac = (m[3] || '').padEnd(digits, '0').slice(0, digits);
+  const v = BigInt(m[2]) * scale + BigInt(frac || '0');
+  return m[1] === '-' ? -v : v;
+}
+function fmtDot(v, digits) {
+  const neg = v < 0n, a = neg ? -v : v, sc = 10n ** BigInt(digits);
+  const i = a / sc, f = String(a % sc).padStart(digits, '0');
+  return (neg ? '-' : '') + i + '.' + f;
+}
+function fmtBR(v, digits = 2) {
+  const neg = v < 0n, a = neg ? -v : v, sc = 10n ** BigInt(digits);
+  const i = String(a / sc).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  const f = String(a % sc).padStart(digits, '0');
+  return (neg ? '−' : '') + i + ',' + f;
+}
+function fmtPct(v) { return fmtBR(v, 4).replace(/0+$/, '').replace(/,$/, '') + '%'; }
+
+class ErroCalculo extends Error {}
+
+function calcular(e) {
+  if (e.bruto < 0n) throw new ErroCalculo('valor bruto negativo');
+  const mem = [];
+  const taxa = divRound(e.bruto * e.taxaPct, CEM);
+  const base = e.bruto - taxa;
+  mem.push({ passo: 'taxa_pagamento', formula: `${fmtDot(e.bruto, 2)} x ${fmtDot(e.taxaPct, 4)}%`, valor: fmtDot(taxa, 2) });
+  mem.push({ passo: 'base_liquida', formula: `${fmtDot(e.bruto, 2)} - ${fmtDot(taxa, 2)}`, valor: fmtDot(base, 2) });
+  let repasse, pctAplicado = null;
+  if (e.valorFixo !== null) {
+    repasse = e.valorFixo;
+    mem.push({ passo: 'valor_repasse', formula: 'valor fixo do item', valor: fmtDot(repasse, 2) });
+  } else if (e.regra.direcao === INST) {
+    pctAplicado = e.regra.pct;
+    repasse = divRound(base * e.regra.pct, CEM);
+    mem.push({ passo: 'valor_repasse', formula: `${fmtDot(base, 2)} x ${fmtDot(e.regra.pct, 4)}%`, valor: fmtDot(repasse, 2) });
+  } else {
+    pctAplicado = e.regra.pct;
+    repasse = divRound(base * (CEM - e.regra.pct), CEM);
+    mem.push({ passo: 'valor_repasse', formula: `${fmtDot(base, 2)} x (100 - ${fmtDot(e.regra.pct, 4)})%`, valor: fmtDot(repasse, 2) });
+  }
+  let ajTotal = 0n;
+  for (const a of e.ajustes) {
+    let delta, formula;
+    if (a.tipo === 'percentual') { delta = divRound(repasse * a.valor, CEM); formula = `${fmtDot(repasse, 2)} x ${fmtDot(a.valor, 4)}%`; }
+    else { delta = a.valor; formula = 'valor fixo'; }
+    ajTotal += delta;
+    mem.push({ passo: 'ajuste', descricao: a.descricao, formula, valor: fmtDot(delta, 2) });
+  }
+  const antes = repasse + ajTotal;
+  if (antes < 0n) throw new ErroCalculo('valor antes do imposto negativo');
+  const imposto = divRound(antes * e.impostoPct, CEM);
+  const final = antes - imposto;
+  mem.push({ passo: 'imposto', formula: `${fmtDot(antes, 2)} x ${fmtDot(e.impostoPct, 4)}%`, valor: fmtDot(imposto, 2) });
+  mem.push({ passo: 'valor_final', formula: `${fmtDot(antes, 2)} - ${fmtDot(imposto, 2)}`, valor: fmtDot(final, 2) });
+  return { taxa, base, repasse, pctAplicado, ajTotal, antes, imposto, impostoPct: e.impostoPct, final, direcao: e.regra.direcao, mem };
+}
+
+// ===== PARÂMETROS FICTÍCIOS (espelham o conjunto de exemplo do repositório) =====
+const P = (x) => toScaled(x, S, false);
+const C = (x) => toScaled(x, 100n, false);
+const DADOS = {
+  profissionais: ['Profissional Alfa', 'Profissional Beta', 'Profissional Gama'],
+  impostos: [
+    { regime: 'REGIME_A', nome: 'Tributo 1', pct: P('6.0'), ini: '2026-01-01', fim: null },
+    { regime: 'REGIME_A', nome: 'Tributo 2', pct: P('2.5'), ini: '2026-01-01', fim: null },
+    { regime: 'REGIME_B', nome: 'Tributo 1', pct: P('4.0'), ini: '2026-01-01', fim: null },
+  ],
+  regimes: ['REGIME_A', 'REGIME_B', 'REGIME_ISENTO'],
+  taxas: [{ forma: 'CARTAO', pct: P('2.5'), ini: '2026-01-01', fim: null }, { forma: 'BOLETO', pct: P('1.0'), ini: '2026-01-01', fim: null }],
+  itens: [{ codigo: 'ITEM-001', descricao: 'Insumo padrão A', valor: C('150.00') }, { codigo: 'ITEM-002', descricao: 'Insumo padrão B', valor: C('320.00') }],
+  regras: [
+    { id: 1, prof: 'Profissional Alfa', cat: 'AMBULATORIAL', tipo: '*', pct: P('42.5'), regime: 'REGIME_A', direcao: INST, ini: '2026-01-01', fim: null },
+    { id: 2, prof: 'Profissional Alfa', cat: 'CIRURGICO', tipo: '*', pct: P('35'), regime: 'REGIME_A', direcao: INST, ini: '2026-01-01', fim: null },
+    { id: 3, prof: 'Profissional Alfa', cat: 'CIRURGICO', tipo: 'PROCEDIMENTO_B', pct: P('60'), regime: 'REGIME_A', direcao: INST, ini: '2026-01-01', fim: null },
+    { id: 4, prof: 'Profissional Beta', cat: 'AMBULATORIAL', tipo: '*', pct: P('20'), regime: 'REGIME_B', direcao: INST, ini: '2026-01-01', fim: null },
+    { id: 5, prof: 'Profissional Beta', cat: 'DIAGNOSTICO', tipo: '*', pct: P('35'), regime: 'REGIME_ISENTO', direcao: PROF, ini: '2026-01-01', fim: null },
+    { id: 6, prof: 'Profissional Gama', cat: 'CIRURGICO', tipo: '*', pct: P('42.5'), regime: 'REGIME_B', direcao: INST, ini: '2026-01-01', fim: null },
+    { id: 7, prof: 'Profissional Gama', cat: 'DIAGNOSTICO', tipo: '*', pct: P('20'), regime: 'REGIME_ISENTO', direcao: INST, ini: '2026-01-01', fim: null },
+    { id: 8, prof: 'Profissional Alfa', cat: 'AMBULATORIAL', tipo: '*', pct: P('50'), regime: 'REGIME_A', direcao: INST, ini: '2026-06-01', fim: null, exemplo: true },
+  ],
+};
+const CATEGORIAS = ['AMBULATORIAL', 'CIRURGICO', 'DIAGNOSTICO'];
+const TIPOS = ['CONSULTA', 'PROCEDIMENTO_A', 'PROCEDIMENTO_B', 'EXAME'];
+
+function vigente(r, data) { return r.ini <= data && (r.fim === null || r.fim >= data); }
+function buscarRegra(prof, cat, tipo, data) {
+  const c = DADOS.regras.filter(r => r.prof === prof && r.cat === cat && (r.tipo === tipo || r.tipo === '*') && vigente(r, data));
+  c.sort((a, b) => (b.tipo === tipo) - (a.tipo === tipo) || (a.ini < b.ini ? 1 : a.ini > b.ini ? -1 : 0) || b.id - a.id);
+  return c[0] || null;
+}
+function pctImpostos(regime, data) {
+  return DADOS.impostos.filter(i => i.regime === regime && vigente(i, data)).reduce((s, i) => s + i.pct, 0n);
+}
+function pctTaxa(forma, data) {
+  if (!forma) return 0n;
+  const c = DADOS.taxas.filter(t => t.forma.toLowerCase() === forma.toLowerCase() && vigente(t, data));
+  c.sort((a, b) => (a.ini < b.ini ? 1 : -1));
+  return c.length ? c[0].pct : 0n;
+}
+function processarAtendimento(a) {
+  const regra = buscarRegra(a.prof, a.cat, a.tipo, a.data);
+  if (!regra) throw new ErroCalculo(`sem regra vigente para categoria '${a.cat}', tipo '${a.tipo}' em ${a.data}`);
+  let valorFixo = null;
+  if (a.item) {
+    const it = DADOS.itens.find(i => i.codigo === a.item);
+    if (!it) throw new ErroCalculo('item de valor fixo inexistente: ' + a.item);
+    valorFixo = it.valor;
+  }
+  const r = calcular({ bruto: a.bruto, regra, impostoPct: pctImpostos(regra.regime, a.data), taxaPct: pctTaxa(a.forma, a.data), valorFixo, ajustes: a.ajustes || [] });
+  r.regra = regra;
+  return r;
+}
+
+// ===== CONJUNTO DE EXEMPLO (mesmo conteúdo de exemplos/atendimentos_exemplo.csv) =====
+const CSV = `codigo;area;responsavel;data;procedimento;valor;pagamento;paciente;insumo
+A-0001;AMBULATORIAL;Profissional Alfa;02/03/2026;CONSULTA;250,00;CARTAO;Paciente 001;
+A-0002;AMBULATORIAL;Profissional Alfa;02/03/2026;CONSULTA;250,00;BOLETO;Paciente 002;
+A-0003;CIRURGICO;Profissional Alfa;03/03/2026;PROCEDIMENTO_A;4.800,00;CARTAO;Paciente 003;ITEM-001
+A-0004;CIRURGICO;Profissional Alfa;03/03/2026;PROCEDIMENTO_B;6.200,00;BOLETO;Paciente 004;
+A-0005;AMBULATORIAL;Profissional Beta;04/03/2026;CONSULTA;180,00;CARTAO;Paciente 005;
+A-0006;DIAGNOSTICO;Profissional Beta;04/03/2026;EXAME;420,50;;Paciente 006;
+A-0007;CIRURGICO;Profissional Gama;05/03/2026;PROCEDIMENTO_A;5.100,00;CARTAO;Paciente 007;ITEM-002
+A-0008;DIAGNOSTICO;Profissional Gama;05/03/2026;EXAME;390,00;BOLETO;Paciente 008;
+A-0009;CIRURGICO;Profissional Beta;06/03/2026;PROCEDIMENTO_A;3.000,00;CARTAO;Paciente 009;
+A-0010;AMBULATORIAL;Profissional Alfa;31/02/2026;CONSULTA;250,00;CARTAO;Paciente 010;`;
+
+function parseData(txt) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(txt.trim());
+  if (!m) throw new Error(`data inválida: '${txt}'`);
+  const d = new Date(Date.UTC(+m[3], +m[2] - 1, +m[1]));
+  if (d.getUTCDate() !== +m[1] || d.getUTCMonth() !== +m[2] - 1) throw new Error(`data inválida: '${txt}'`);
+  return `${m[3]}-${m[2]}-${m[1]}`;
+}
+function processarCsv() {
+  const linhas = CSV.split('\n').slice(1);
+  const saida = [];
+  linhas.forEach((ln, i) => {
+    const c = ln.split(';');
+    const item = { codigo: c[0], linha: i + 2, prof: c[2], cat: c[1], tipo: c[4] };
+    try {
+      const a = { prof: c[2], cat: c[1], tipo: c[4], data: parseData(c[3]), bruto: toScaled(c[5], 100n, true), forma: c[6] || '', item: c[8] || '' };
+      item.data = a.data; item.bruto = a.bruto;
+      try { item.res = processarAtendimento(a); } catch (e) { item.erro = e.message; }
+    } catch (e) { item.invalida = e.message; }
+    saida.push(item);
+  });
+  return saida;
+}
+
+// ===== INTERFACE =====
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+const nome = (s) => s.replace(/_/g, ' ').toLowerCase().replace(/^./, (x) => x.toUpperCase());
+function opts(sel, list, vazio) {
+  $(sel).innerHTML = (vazio ? `<option value="">${vazio}</option>` : '') + list.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+}
+opts('f-prof', DADOS.profissionais); opts('f-cat', CATEGORIAS); opts('f-tipo', TIPOS);
+opts('f-forma', DADOS.taxas.map(t => t.forma), 'Nenhuma');
+opts('f-item', DADOS.itens.map(i => i.codigo), 'Nenhum (usar percentual da regra)');
+
+function ajusteRow(tipo = 'percentual', valor = '', desc = '') {
+  const div = document.createElement('div');
+  div.className = 'adj-row';
+  div.innerHTML = `<label>Tipo<select class="aj-tipo"><option value="percentual">Percentual (%)</option><option value="valor_fixo">Valor fixo (R$)</option></select></label>
+    <label>Valor<input class="aj-valor" inputmode="decimal" placeholder="-10"></label>
+    <label>Descrição<input class="aj-desc" placeholder="obrigatória"></label>
+    <button type="button" class="btn" aria-label="Remover ajuste">Remover</button>`;
+  div.querySelector('.aj-tipo').value = tipo; div.querySelector('.aj-valor').value = valor; div.querySelector('.aj-desc').value = desc;
+  div.querySelector('button').addEventListener('click', () => { div.remove(); simular(); });
+  div.addEventListener('input', simular); div.addEventListener('change', simular);
+  $('ajustes').appendChild(div);
+}
+
+function lerForm() {
+  const ajustes = [];
+  for (const row of document.querySelectorAll('.adj-row')) {
+    const tipo = row.querySelector('.aj-tipo').value, v = row.querySelector('.aj-valor').value.trim(), d = row.querySelector('.aj-desc').value.trim();
+    if (!v && !d) continue;
+    if (!d) throw new Error('Todo ajuste exige uma descrição.');
+    ajustes.push({ tipo, descricao: d, valor: tipo === 'percentual' ? toScaled(v, S, 'auto') : toScaled(v, 100n, 'auto') });
+  }
+  return { prof: $('f-prof').value, cat: $('f-cat').value, tipo: $('f-tipo').value, data: $('f-data').value,
+    bruto: toScaled($('f-bruto').value, 100n, 'auto'), forma: $('f-forma').value, item: $('f-item').value, ajustes };
+}
+
+function simular() {
+  const box = $('resultado');
+  let a;
+  try { a = lerForm(); if (!a.data) throw new Error('Informe a data do atendimento.'); }
+  catch (e) { box.innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+  let r;
+  try { r = processarAtendimento(a); }
+  catch (e) { box.innerHTML = `<h2>Resultado</h2><div class="err">${esc(e.message)}</div><p class="small" style="margin-top:12px">Sem regra vigente, o produto registra o erro e continua com os demais atendimentos.</p>`; return; }
+  const g = r.regra;
+  const ajs = r.mem.filter(m => m.passo === 'ajuste');
+  const rows = [
+    `<tr><td>Valor bruto</td><td></td><td class="n">${fmtBR(a.bruto)}</td></tr>`,
+    `<tr><td>Taxa de pagamento</td><td>${a.forma ? esc(a.forma) + ' · ' + fmtPct(pctTaxa(a.forma, a.data)) : 'sem taxa'}</td><td class="n">−${fmtBR(r.taxa)}</td></tr>`,
+    `<tr><td>Base líquida</td><td></td><td class="n">${fmtBR(r.base)}</td></tr>`,
+    `<tr><td>Repasse</td><td>${a.item ? 'valor fixo do item' : (g.direcao === INST ? 'base × ' + fmtPct(g.pct) : 'base × (100 − ' + fmtPct(g.pct).replace('%', '') + ')%')}</td><td class="n">${fmtBR(r.repasse)}</td></tr>`,
+    ...a.ajustes.map((x, i) => `<tr><td>Ajuste ${i + 1}</td><td>${esc(x.descricao)} · ${x.tipo === 'percentual' ? fmtPct(x.valor) + ' do repasse' : 'valor fixo'}</td><td class="n">${fmtBR(toScaled(ajs[i].valor, 100n, false))}</td></tr>`),
+    `<tr><td>Tributos</td><td>${fmtPct(r.impostoPct)} sobre ${fmtBR(r.antes)}</td><td class="n">−${fmtBR(r.imposto)}</td></tr>`,
+    `<tr class="tot"><td>Valor final</td><td></td><td class="n">${fmtBR(r.final)}</td></tr>`,
+  ].join('');
+  box.innerHTML = `<div class="final"><span class="k">Valor final do repasse (R$)</span><span class="v">${fmtBR(r.final)}</span></div>
+    <h2 style="margin-top:20px">Regra aplicada</h2>
+    <div class="rule"><span>Regra <b>#${g.id}</b>${g.exemplo ? ' (exemplo de nova vigência)' : ''}</span><span>Percentual <b>${fmtPct(g.pct)}</b></span><span>Regime <b>${esc(g.regime)}</b></span><span>Direção <b>${g.direcao === INST ? 'instituição → profissional' : 'profissional → instituição'}</b></span><span>Vigência desde <b>${g.ini.split('-').reverse().join('/')}</b></span></div>
+    <h2>Memória de cálculo</h2>
+    <div class="tablewrap"><table><tr><th>Etapa</th><th>Fórmula</th><th class="n">R$</th></tr>${rows}</table></div>
+    <details><summary>Ver memória em JSON (como gravada no banco)</summary><pre>${esc(JSON.stringify(r.mem, null, 2))}</pre></details>`;
+}
+
+const PRESETS = [
+  ['A-0001', { prof: 'Profissional Alfa', cat: 'AMBULATORIAL', tipo: 'CONSULTA', data: '2026-03-02', bruto: '250,00', forma: 'CARTAO', item: '' }],
+  ['A-0002', { prof: 'Profissional Alfa', cat: 'AMBULATORIAL', tipo: 'CONSULTA', data: '2026-03-02', bruto: '250,00', forma: 'BOLETO', item: '' }],
+  ['A-0003 (valor fixo)', { prof: 'Profissional Alfa', cat: 'CIRURGICO', tipo: 'PROCEDIMENTO_A', data: '2026-03-03', bruto: '4800,00', forma: 'CARTAO', item: 'ITEM-001' }],
+  ['A-0004 (tipo exato)', { prof: 'Profissional Alfa', cat: 'CIRURGICO', tipo: 'PROCEDIMENTO_B', data: '2026-03-03', bruto: '6200,00', forma: 'BOLETO', item: '' }],
+  ['A-0005', { prof: 'Profissional Beta', cat: 'AMBULATORIAL', tipo: 'CONSULTA', data: '2026-03-04', bruto: '180,00', forma: 'CARTAO', item: '' }],
+  ['A-0006 (direção inversa)', { prof: 'Profissional Beta', cat: 'DIAGNOSTICO', tipo: 'EXAME', data: '2026-03-04', bruto: '420,50', forma: '', item: '' }],
+  ['A-0007', { prof: 'Profissional Gama', cat: 'CIRURGICO', tipo: 'PROCEDIMENTO_A', data: '2026-03-05', bruto: '5100,00', forma: 'CARTAO', item: 'ITEM-002' }],
+  ['A-0008', { prof: 'Profissional Gama', cat: 'DIAGNOSTICO', tipo: 'EXAME', data: '2026-03-05', bruto: '390,00', forma: 'BOLETO', item: '' }],
+  ['Sem regra (A-0009)', { prof: 'Profissional Beta', cat: 'CIRURGICO', tipo: 'PROCEDIMENTO_A', data: '2026-03-06', bruto: '3000,00', forma: 'CARTAO', item: '' }],
+  ['Nova vigência (junho)', { prof: 'Profissional Alfa', cat: 'AMBULATORIAL', tipo: 'CONSULTA', data: '2026-06-01', bruto: '250,00', forma: 'CARTAO', item: '' }],
+  ['Com ajuste de −10%', { prof: 'Profissional Alfa', cat: 'AMBULATORIAL', tipo: 'CONSULTA', data: '2026-03-02', bruto: '250,00', forma: 'CARTAO', item: '', aj: ['percentual', '-10', 'redução'] }],
+];
+function aplicarPreset(p) {
+  $('f-prof').value = p.prof; $('f-cat').value = p.cat; $('f-tipo').value = p.tipo; $('f-data').value = p.data;
+  $('f-bruto').value = p.bruto; $('f-forma').value = p.forma; $('f-item').value = p.item;
+  $('ajustes').innerHTML = '';
+  if (p.aj) ajusteRow(...p.aj);
+  simular();
+}
+$('presets').innerHTML = PRESETS.map((p, i) => `<button type="button" class="btn" data-i="${i}">${esc(p[0])}</button>`).join('');
+$('presets').addEventListener('click', (ev) => { const b = ev.target.closest('button[data-i]'); if (b) aplicarPreset(PRESETS[+b.dataset.i][1]); });
+$('form').addEventListener('input', simular); $('form').addEventListener('change', simular);
+$('form').addEventListener('submit', (ev) => ev.preventDefault());
+$('add-aj').addEventListener('click', () => { ajusteRow(); });
+
+function renderLote() {
+  const itens = processarCsv();
+  const ok = itens.filter(i => i.res), er = itens.filter(i => i.erro), inv = itens.filter(i => i.invalida);
+  $('lote-stats').innerHTML = `<span>Linhas lidas: <b>${itens.length}</b></span><span>Inseridas: <b>${itens.length - inv.length}</b></span><span>Inválidas: <b>${inv.length}</b></span><span>Calculadas: <b>${ok.length}</b></span><span>Com erro de cálculo: <b>${er.length}</b></span>`;
+  let tot = 0n;
+  const corpo = itens.map((i) => {
+    if (i.invalida) return `<tr class="bad"><td>${esc(i.codigo)}</td><td>${esc(i.prof)}</td><td>${esc(nome(i.cat))} · ${esc(nome(i.tipo))}</td><td colspan="4">Linha inválida: ${esc(i.invalida)}</td></tr>`;
+    if (i.erro) return `<tr class="bad"><td>${esc(i.codigo)}</td><td>${esc(i.prof)}</td><td>${esc(nome(i.cat))} · ${esc(nome(i.tipo))}</td><td class="n">${fmtBR(i.bruto)}</td><td colspan="3">${esc(i.erro)}</td></tr>`;
+    tot += i.res.final;
+    return `<tr><td>${esc(i.codigo)}</td><td>${esc(i.prof)}</td><td>${esc(nome(i.cat))} · ${esc(nome(i.tipo))}</td><td class="n">${fmtBR(i.bruto)}</td><td class="n">${fmtBR(i.res.repasse)}</td><td class="n">${fmtBR(i.res.imposto)}</td><td class="n">${fmtBR(i.res.final)}</td></tr>`;
+  }).join('');
+  $('lote-tab').innerHTML = `<tr><th>Código</th><th>Profissional</th><th>Atendimento</th><th class="n">Bruto</th><th class="n">Repasse</th><th class="n">Tributos</th><th class="n">Final</th></tr>${corpo}<tr class="tot"><td colspan="6">Total final dos atendimentos calculados</td><td class="n">${fmtBR(tot)}</td></tr>`;
+  const g = {};
+  ok.forEach((i) => { const k = i.prof + '|' + i.res.direcao; g[k] = g[k] || { prof: i.prof, dir: i.res.direcao, n: 0, bruto: 0n, rep: 0n, imp: 0n, fin: 0n }; const x = g[k]; x.n++; x.bruto += i.bruto; x.rep += i.res.repasse; x.imp += i.res.imposto; x.fin += i.res.final; });
+  $('cons-tab').innerHTML = `<tr><th>Profissional</th><th>Direção</th><th class="n">Atend.</th><th class="n">Bruto</th><th class="n">Repasse</th><th class="n">Tributos</th><th class="n">Final</th></tr>` +
+    Object.values(g).sort((a, b) => a.prof.localeCompare(b.prof) || a.dir.localeCompare(b.dir)).map((x) => `<tr><td>${esc(x.prof)}</td><td>${x.dir === INST ? 'instituição → profissional' : 'profissional → instituição'}</td><td class="n">${x.n}</td><td class="n">${fmtBR(x.bruto)}</td><td class="n">${fmtBR(x.rep)}</td><td class="n">${fmtBR(x.imp)}</td><td class="n">${fmtBR(x.fin)}</td></tr>`).join('');
+}
+
+function renderParams() {
+  const linhas = DADOS.regras.map(r => `<tr><td>#${r.id}</td><td>${esc(r.prof)}</td><td>${esc(r.cat)}</td><td>${esc(r.tipo)}</td><td class="n">${fmtPct(r.pct)}</td><td>${esc(r.regime)}</td><td>${r.direcao === INST ? 'inst. → prof.' : 'prof. → inst.'}</td><td>${r.ini.split('-').reverse().join('/')}</td></tr>`).join('');
+  const imp = DADOS.regimes.map(rg => `${rg}: ${fmtPct(pctImpostos(rg, '2026-03-01'))}`).join(' · ');
+  const tx = DADOS.taxas.map(t => `${t.forma} ${fmtPct(t.pct)}`).join(' · ');
+  const it = DADOS.itens.map(i => `${i.codigo} R$ ${fmtBR(i.valor)}`).join(' · ');
+  $('param-tab').innerHTML = `<tr><th>Regra</th><th>Profissional</th><th>Categoria</th><th>Tipo</th><th class="n">%</th><th>Regime</th><th>Direção</th><th>Início</th></tr>${linhas}
+    <tr><td colspan="8" class="small" style="white-space:normal">Tributos somados por regime: ${imp}. Taxas: ${tx}. Itens de valor fixo: ${it}.</td></tr>`;
+}
+
+function aba(qual) {
+  const sim = qual === 'sim';
+  $('sec-sim').hidden = !sim; $('sec-lote').hidden = sim;
+  $('tab-sim').setAttribute('aria-selected', String(sim)); $('tab-lote').setAttribute('aria-selected', String(!sim));
+}
+$('tab-sim').addEventListener('click', () => aba('sim'));
+$('tab-lote').addEventListener('click', () => aba('lote'));
+
+renderLote(); renderParams(); simular();
+</script>
+
+</body>
+</html>
